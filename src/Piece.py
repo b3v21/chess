@@ -64,13 +64,21 @@ class Pawn(Piece):
         return set(
             filter(
                 lambda pos: (
-                    pos[0] == current_pos[0] and not current_layout[pos]
+                    pos[0] >= 0
+                    and pos[0] <= 7
+                    and pos[1] >= 0
+                    and pos[1] <= 7
+                    and pos[0] == current_pos[0]
+                    and not current_layout[pos]
                 )  # move forward
                 or (
-                    pos[0] != current_pos[0]
+                    pos[0] >= 0
+                    and pos[0] <= 7
+                    and pos[1] >= 0
+                    and pos[1] <= 7
+                    and pos[0] != current_pos[0]
                     and current_layout[pos]
-                    and current_layout[pos].get_colour()
-                    != self.get_colour() 
+                    and current_layout[pos].get_colour() != self.get_colour()
                 ),  # take diagonally
                 moves,
             )
