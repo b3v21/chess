@@ -24,62 +24,79 @@ class Piece(ABC):
         pass
 
     @abstractmethod
-    def get_legal_moves(self, current_layout):
+    def get_legal_moves(self, pieces):
         pass
+
+    @staticmethod
+    def occupied(pieces, pos):
+        for piece in pieces:
+            if piece.get_pos() == pos:
+                return True
+        return False
+
+    @staticmethod
+    def get_piece_by_pos(pieces, pos):
+        for piece in pieces:
+            if piece.get_pos() == pos:
+                return piece
+        return False
 
 
 class Pawn(Piece):
     def __init__(self, position: tuple[int, int], colour: int):
         super().__init__(position, colour)
 
-    def get_legal_moves(self, current_layout):
+    def get_legal_moves(self, pieces):
         x, y = self.get_pos()
         colour_factor = (
             1 if self.get_colour() == 1 else -1
         )  # Changes movement logic based on colour
 
+        candidate_moves = [
+            (x, y + (colour_factor * 1)),
+            ((x + 1), y + (colour_factor * 1)),
+            ((x - 1), y + (colour_factor * 1)),
+        ]
+
         if (y == 1 and colour_factor == 1) or (y == 6 and colour_factor == -1):
+            if not Piece.occupied(pieces, (x, y + (colour_factor * 1))):
+                candidate_moves.append((x, y + (colour_factor * 2)))
+
             return self._remove_blocked_moves(
-                [
-                    (x, y + (colour_factor * 1)),
-                    (x, y + (colour_factor * 2)),
-                    ((x + 1), y + (colour_factor * 1)),
-                    ((x - 1), y + (colour_factor * 1)),
-                ],
-                current_layout,
+                candidate_moves,
+                pieces,
                 (x, y),
             )
         else:
             return self._remove_blocked_moves(
-                [
-                    (x, y + (colour_factor * 1)),
-                    ((x + 1), y + (colour_factor * 1)),
-                    ((x - 1), y + (colour_factor * 1)),
-                ],
-                current_layout,
+                candidate_moves,
+                pieces,
                 (x, y),
             )
 
-    def _remove_blocked_moves(self, moves, current_layout, current_pos):
+    def _remove_blocked_moves(self, moves, pieces, current_pos):
         return set(
             filter(
                 lambda pos: (
-                    pos[0] >= 0
-                    and pos[0] <= 7
-                    and pos[1] >= 0
-                    and pos[1] <= 7
-                    and pos[0] == current_pos[0]
-                    and not current_layout[pos]
-                )  # move forward
-                or (
-                    pos[0] >= 0
-                    and pos[0] <= 7
-                    and pos[1] >= 0
-                    and pos[1] <= 7
-                    and pos[0] != current_pos[0]
-                    and current_layout[pos]
-                    and current_layout[pos].get_colour() != self.get_colour()
-                ),  # take diagonally
+                    (
+                        pos[0] >= 0
+                        and pos[0] <= 7
+                        and pos[1] >= 0
+                        and pos[1] <= 7
+                        and pos[0] == current_pos[0]
+                        and not Piece.occupied(pieces, pos)
+                    )  # move straight
+                    or (
+                        pos[0] >= 0
+                        and pos[0] <= 7
+                        and pos[1] >= 0
+                        and pos[1] <= 7
+                        and pos[0] != current_pos[0]
+                        and Piece.occupied(pieces, pos)
+                        and Piece.get_piece_by_pos(pieces, pos).get_colour()
+                        != self.get_colour()
+                    )  # take diagonally
+                ),
                 moves,
             )
         )
@@ -89,7 +106,7 @@ class Knight(Piece):
     def __init__(self, position: tuple[int, int], colour: int):
         super().__init__(position, colour)
 
-    def get_legal_moves(self, current_layout):
+    def get_legal_moves(self, pieces):
         x, y = self.get_pos()
         offset_list = list(
             set(itertools.product([-1, 1], [-2, 2]))
@@ -104,8 +121,9 @@ class Knight(Piece):
                 and pos[1] >= 0
                 and pos[1] <= 7
                 and (
-                    not current_layout[pos]
-                    or self.get_colour() != current_layout[pos].get_colour()
+                    not Piece.occupied(pieces, pos)
+                    or self.get_colour()
+                    != Piece.get_piece_by_pos(pieces, pos).get_colour()
                 ),
                 moves,
             )
@@ -121,7 +139,7 @@ class Bishop(Piece):
     def __init__(self, position: tuple[int, int], colour: int):
         super().__init__(position, colour)
 
-    def get_legal_moves(self, current_layout):
+    def get_legal_moves(self, pieces):
         x, y = self.get_pos()
         offset_list = [
             (x + n * i, y + n * j)
@@ -136,16 +154,17 @@ class Bishop(Piece):
                 and pos[1] <= 7
                 and pos[1] >= 0
                 and (
-                    not current_layout[pos]
-                    or self.get_colour() != current_layout[pos].get_colour()
+                    not Piece.occupied(pieces, pos)
+                    or self.get_colour()
+                    != Piece.get_piece_by_pos(pieces, pos).get_colour()
                 ),
                 offset_list,
             )
         )
 
-        return self._remove_blocked_moves(offset_list, current_layout, (x, y))
+        return self._remove_blocked_moves(offset_list, pieces, (x, y))
 
-    def _remove_blocked_moves(self, moves, current_layout, current_pos):
+    def _remove_blocked_moves(self, moves, pieces, current_pos):
         x, y = current_pos
         invalid_moves = []
 
@@ -156,7 +175,9 @@ class Bishop(Piece):
             ysign = 1 if ydiff > 0 else -1
 
             for partial in range(1, abs(xdiff)):
-                if current_layout[(x + (xsign * partial), y + (ysign * partial))]:
+                if Piece.occupied(
+                    pieces, (x + (xsign * partial), y + (ysign * partial))
+                ):
                     invalid_moves.append((i, j))
                     break
 
@@ -167,7 +188,7 @@ class Rook(Piece):
     def __init__(self, position: tuple[int, int], colour: int):
         super().__init__(position, colour)
 
-    def get_legal_moves(self, current_layout):
+    def get_legal_moves(self, pieces):
         x, y = self.get_pos()
         moves = [(x + i, y) for i in range(1, 8 - x)]
         moves += [(x - i, y) for i in range(1, x + 1)]
@@ -176,15 +197,16 @@ class Rook(Piece):
 
         moves = list(
             filter(
-                lambda pos: not current_layout[pos]
-                or self.get_colour() != current_layout[pos].get_colour(),
+                lambda pos: not Piece.occupied(pieces, pos)
+                or self.get_colour()
+                != Piece.get_piece_by_pos(pieces, pos).get_colour(),
                 moves,
             )
         )
 
-        return self._remove_blocked_moves(moves, current_layout, (x, y))
+        return self._remove_blocked_moves(moves, pieces, (x, y))
 
-    def _remove_blocked_moves(self, moves, current_layout, current_pos):
+    def _remove_blocked_moves(self, moves, pieces, current_pos):
         x, y = current_pos
         invalid_moves = []
 
@@ -197,11 +219,11 @@ class Rook(Piece):
 
             for partial in range(1, max(abs_directions)):
                 if index_diff:
-                    if current_layout[(x, y + (sign * partial))]:
+                    if Piece.occupied(pieces, (x, y + (sign * partial))):
                         invalid_moves.append((i, j))
                         break
                 else:
-                    if current_layout[(x + (sign * partial), y)]:
+                    if Piece.occupied(pieces, (x + (sign * partial), y)):
                         invalid_moves.append((i, j))
                         break
 
@@ -212,17 +234,15 @@ class Queen(Rook, Bishop):
     def __init__(self, position: tuple[int, int], colour: int):
         super().__init__(position, colour)
 
-    def get_legal_moves(self, current_layout):
-        Rook.get_legal_moves(self, current_layout)
-        Bishop.get_legal_moves(self, current_layout)
+    def get_legal_moves(self, pieces):
+        Rook.get_legal_moves(self, pieces)
+        Bishop.get_legal_moves(self, pieces)
 
-        return Rook.get_legal_moves(self, current_layout) | Bishop.get_legal_moves(
-            self, current_layout
-        )
+        return Rook.get_legal_moves(self, pieces) | Bishop.get_legal_moves(self, pieces)
 
-    def _remove_blocked_moves(self, moves, current_layout, current_pos):
+    def _remove_blocked_moves(self, moves, pieces, current_pos):
         x, y = current_pos
-        invalid_moves = []
+        invalid_moves = set()
 
         for i, j in moves:
             if (i - x) == 0 or (j - y) == 0:
@@ -236,12 +256,12 @@ class Queen(Rook, Bishop):
 
                 for partial in range(1, max(abs_directions)):
                     if index_diff:
-                        if current_layout[(x, y + (sign * partial))]:
-                            invalid_moves.append((i, j))
+                        if Piece.occupied(pieces, (x, y + (sign * partial))):
+                            invalid_moves.add((i, j))
                             break
                     else:
-                        if current_layout[(x + (sign * partial), y)]:
-                            invalid_moves.append((i, j))
+                        if Piece.occupied(pieces, (x + (sign * partial), y)):
+                            invalid_moves.add((i, j))
                             break
             else:
                 xdiff = i - x
@@ -250,8 +270,10 @@ class Queen(Rook, Bishop):
                 ysign = 1 if ydiff > 0 else -1
 
                 for partial in range(1, abs(xdiff)):
-                    if current_layout[(x + (xsign * partial), y + (ysign * partial))]:
-                        invalid_moves.append((i, j))
+                    if Piece.occupied(
+                        pieces, (x + (xsign * partial), y + (ysign * partial))
+                    ):
+                        invalid_moves.add((i, j))
                         break
 
         return set(filter(lambda x: x not in invalid_moves, moves))
@@ -261,7 +283,7 @@ class King(Piece):
     def __init__(self, position: tuple[int, int], colour: int):
         super().__init__(position, colour)
 
-    def get_legal_moves(self, current_layout):
+    def get_legal_moves(self, pieces):
         x, y = self.get_pos()
         moves = [
             (x + i, y + j)
@@ -277,15 +299,18 @@ class King(Piece):
         ]
         moves.remove((x, y))
 
-        return self._remove_blocked_moves(moves, current_layout)
+        return self._remove_blocked_moves(moves, pieces)
 
-    def _remove_blocked_moves(self, moves, current_layout):
-        return set(
+    def _remove_blocked_moves(self, moves, pieces):
+        test =set(
             filter(
                 lambda pos: (
-                    not current_layout[pos]
-                    or self.get_colour() != current_layout[pos].get_colour()
+                    not Piece.occupied(pieces, pos)
+                    or self.get_colour()
+                    != Piece.get_piece_by_pos(pieces, pos).get_colour()
                 ),
                 moves,
             )
         )
+        print(test)
+        return test
